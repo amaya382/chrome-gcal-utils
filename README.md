@@ -15,6 +15,7 @@
 - **Merge duplicate events**: a meeting shared by five people shows up once instead of as five narrow chips side by side, and each calendar's color stays visible as a stripe on its left edge
 - **Hide events by regex**: events you never want to see are removed from the grid, and a `⊘N` badge on the date header tells you that something was hidden
 - **Solo a calendar**: one click shows only that calendar, and a second click brings back exactly the calendars you had before
+- **Fold early morning and late night**: the hours you rarely use shrink to a thin band, so more of the day fits on screen
 
 ## 🚀 Quick Start
 
@@ -59,6 +60,12 @@ Focus time
 
 Days with hidden events show a `⊘N` badge in the date header. Hovering over the badge lists the titles that were hidden. The space hidden events occupied is reclaimed in the same way as for merged events.
 
+### Fold early morning and late night
+
+In the time grid, the early-morning range (00:00–08:00 by default) and the late-night range (20:00–24:00 by default) each shrink to a hatched band labeled with the folded hours. Click a band to expand that range; a small `▾` button at the top of the expanded range folds it again. Which ranges are expanded is saved in `chrome.storage.local`.
+
+Events that lie entirely inside a folded range are counted on the band as `+N` for each day, and hovering over the count lists them. Events that cross the edge of a folded range stay visible for the part outside it, and the cut edge fades out to show that the event continues.
+
 ### Solo mode
 
 Hover over a calendar in the left sidebar and an `S` button appears next to Google's own buttons on the row, without changing the row's width. Clicking it shows only that calendar. Clicking the same button again restores the calendars that were visible before solo mode started; calendars that were hidden before stay hidden.
@@ -75,10 +82,13 @@ All settings are in the extension popup and are saved in `chrome.storage.sync`.
 | Hide events by regex | On | Hide events whose title matches a hide pattern |
 | Solo button on calendar list | On | Show the `S` button in the sidebar |
 | Hide patterns | Empty | One regular expression per line, case-insensitive |
+| Fold early morning and late night | On | Fold the early-morning and late-night ranges of the time grid |
+| Early morning | 8 | Early morning is 00:00 up to this hour; 0 turns it off |
+| Late night | 20 | Late night is this hour up to 24:00; 24 turns it off |
 
 ## 🔒 Permissions
 
-- `storage`: save the settings and the calendars to restore after solo mode
+- `storage`: save the settings, the calendars to restore after solo mode, and which folded ranges are expanded
 
 ## 🧪 Development
 

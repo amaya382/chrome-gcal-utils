@@ -132,7 +132,26 @@
     return result;
   }
 
-  const api = { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows };
+  // Early morning always starts at 0:00 and late night always ends at 24:00; the late range never overlaps the early one.
+  function foldRanges(earlyEnd, lateStart) {
+    const clamp = (h) => Math.min(24, Math.max(0, Math.round(Number(h) || 0)));
+    const early = { name: 'early', start: 0, end: clamp(earlyEnd) };
+    const late = { name: 'late', start: Math.max(clamp(lateStart), early.end), end: 24 };
+    return [early, late].filter((r) => r.end > r.start);
+  }
+
+  // ranges: sorted, non-overlapping [{ top, bottom }] in px, each folded down to `band` px
+  function foldY(y, ranges, band) {
+    let out = y;
+    for (const r of ranges) {
+      const size = r.bottom - r.top;
+      if (y >= r.bottom) out -= size - band;
+      else if (y > r.top) out -= (y - r.top) * (1 - band / size);
+    }
+    return out;
+  }
+
+  const api = { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY };
   root.GCalUtilsCore = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(globalThis);

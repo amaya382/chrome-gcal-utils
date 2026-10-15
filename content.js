@@ -1,12 +1,21 @@
 (() => {
-  const { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows } = globalThis.GCalUtilsCore;
+  const { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY } =
+    globalThis.GCalUtilsCore;
 
-  const DEFAULTS = { merge: true, hide: true, solo: true, patterns: '' };
+  const DEFAULTS = { merge: true, hide: true, solo: true, patterns: '', fold: true, earlyEnd: 8, lateStart: 20 };
+  const FOLD_STATE_KEY = 'foldOpen';
   const STRIPE_WIDTH = 4;
+  const BAND_HEIGHT = 24;
+  // Chip tops sit a pixel above the hour line, so boundaries are compared with this slack.
+  const EDGE_SLACK = 2;
   const UNSUPPORTED_VIEW = /\/r\/(month|year|agenda|schedule)(\/|$)/;
 
   let settings = { ...DEFAULTS };
   let patterns = [];
+  let foldOpen = {};
+  // Google scrolls the grid in unfolded coordinates, so the first fold of a grid converts its scroll position once.
+  const foldedScrollers = new WeakSet();
+  let keepInView = null;
 
   // Every DOM change goes through this log so a run can be fully reverted before the next scan.
   const changes = [];
@@ -291,6 +300,175 @@
     return null;
   }
 
+  function hourLabel(hour) {
+    return `${String(hour).padStart(2, '0')}:00`;
+  }
+
+  function scrollerOf(node) {
+    for (let n = node.parentElement; n && n !== document.body; n = n.parentElement) {
+      if (/(auto|scroll)/.test(getComputedStyle(n).overflowY)) return n;
+    }
+    return null;
+  }
+
+  // Google renders the hour labels and the hour lines as two lists of 24 equally tall rows.
+  function hourLists(main, hourHeight) {
+    const lists = [];
+    for (const node of main.querySelectorAll('*')) {
+      if (node.childElementCount < 24) continue;
+      const rows = [...node.children].filter((c) => Math.abs(c.offsetHeight - hourHeight) < 1);
+      if (rows.length === 24) lists.push(rows);
+    }
+    return lists;
+  }
+
+  function prepareFold(main, chips) {
+    const cells = [...main.querySelectorAll('[role="gridcell"][data-datekey]')];
+    if (!cells.length) return null;
+    const hourHeight =
+      parseFloat(getComputedStyle(cells[0]).getPropertyValue('--cal-timed-grid-cell-height')) || cells[0].offsetHeight / 24;
+    if (!(hourHeight > 0)) return null;
+    const lists = hourLists(main, hourHeight);
+    if (!lists.length) return null;
+
+    const ranges = foldRanges(settings.earlyEnd, settings.lateStart).map((r) => ({
+      ...r,
+      top: r.start * hourHeight,
+      bottom: r.end * hourHeight,
+      open: !!foldOpen[r.name],
+      folded: new Map(),
+    }));
+    const closed = ranges.filter((r) => !r.open);
+    for (const chip of chips) {
+      if (chip.hidden || chip.kind !== 'timed') continue;
+      const top = parseFloat(chip.box.style.top);
+      const bottom = top + parseFloat(chip.box.style.height);
+      const range = closed.find((r) => top >= r.top - EDGE_SLACK && bottom <= r.bottom + EDGE_SLACK);
+      if (!range) continue;
+      chip.hidden = true;
+      setStyle(chip.box, 'display', 'none');
+      if (!range.folded.has(chip.scope)) range.folded.set(chip.scope, []);
+      range.folded.get(chip.scope).push(chip);
+    }
+    return { cells, hourHeight, lists, ranges, closed };
+  }
+
+  function applyFold({ cells, hourHeight, lists, ranges, closed }, chips) {
+    const map = (y) => foldY(y, closed, BAND_HEIGHT);
+
+    for (const rows of lists) {
+      for (const r of closed) {
+        setStyle(rows[r.start], 'height', `${BAND_HEIGHT}px`);
+        for (let h = r.start + 1; h < r.end; h++) setStyle(rows[h], 'display', 'none');
+      }
+      const fullHeight = 24 * hourHeight;
+      for (let node = rows[0].parentElement; node && node !== document.body; node = node.parentElement) {
+        if (/(auto|scroll)/.test(getComputedStyle(node).overflowY)) break;
+        if (Math.abs(node.offsetHeight - fullHeight) <= 3) setStyle(node, 'height', 'auto');
+      }
+    }
+
+    for (const chip of chips) {
+      if (chip.hidden || chip.kind !== 'timed') continue;
+      let top = parseFloat(chip.box.style.top);
+      let bottom = top + parseFloat(chip.box.style.height);
+      const clip = [];
+      for (const r of closed) {
+        if (top >= r.top - EDGE_SLACK && top < r.bottom - EDGE_SLACK && bottom > r.bottom) {
+          top = r.bottom;
+          clip.push('top');
+        }
+        if (top < r.top && bottom > r.top + EDGE_SLACK && bottom <= r.bottom + EDGE_SLACK) {
+          bottom = r.top;
+          clip.push('bottom');
+        }
+      }
+      setStyle(chip.box, 'top', `${map(top)}px`);
+      setStyle(chip.box, 'height', `${Math.max(0, map(bottom) - map(top))}px`);
+      if (clip.length) setAttr(chip.box, 'data-gcu-clip', clip.join(' '));
+    }
+
+    for (const cell of cells) {
+      for (const marker of cell.children) {
+        if (marker.hasAttribute('data-eventid') || !isPx(marker.style.top)) continue;
+        const y = parseFloat(marker.style.top);
+        if (closed.some((r) => y > r.top && y < r.bottom)) setStyle(marker, 'display', 'none');
+        else setStyle(marker, 'top', `${map(y)}px`);
+      }
+    }
+
+    const row = cells[0].parentElement;
+    const left = cells[0].offsetLeft;
+    const last = cells[cells.length - 1];
+    const width = last.offsetLeft + last.offsetWidth - left;
+    const controls = new Map();
+    for (const r of ranges) {
+      const label = `${hourLabel(r.start)}–${hourLabel(r.end)}`;
+      const control = r.open ? foldPill(r, label) : foldBand(r, label, cells, left);
+      control.style.top = `${map(r.top)}px`;
+      control.style.left = `${left}px`;
+      if (!r.open) control.style.width = `${width}px`;
+      inject(control, row);
+      controls.set(r.name, control);
+    }
+
+    const scroller = scrollerOf(cells[0]);
+    if (!scroller) return;
+    if (keepInView && controls.has(keepInView.name)) {
+      scroller.scrollTop += controls.get(keepInView.name).getBoundingClientRect().top - keepInView.top;
+    } else if (!foldedScrollers.has(scroller)) {
+      scroller.scrollTop = map(scroller.scrollTop);
+    }
+    foldedScrollers.add(scroller);
+    keepInView = null;
+  }
+
+  function foldBand(range, label, cells, left) {
+    const band = el('div', 'gcu-fold-band');
+    band.style.height = `${BAND_HEIGHT}px`;
+    band.title = `${label} folded — click to expand`;
+    band.appendChild(el('span', 'gcu-fold-label', `▸ ${label}`));
+    for (const cell of cells) {
+      const folded = range.folded.get(cell) || [];
+      if (!folded.length) continue;
+      const slot = el('span', 'gcu-fold-slot');
+      slot.style.left = `${cell.offsetLeft - left}px`;
+      slot.style.width = `${cell.offsetWidth}px`;
+      const count = el('span', 'gcu-fold-count', `+${folded.length}`);
+      count.setAttribute('data-gcu-pop', '');
+      popContent.set(count, {
+        heading: label,
+        items: folded.map((c) => ({ color: c.color, status: c.status, label: c.title })),
+      });
+      slot.appendChild(count);
+      band.appendChild(slot);
+    }
+    return withToggle(band, range);
+  }
+
+  function foldPill(range, label) {
+    const pill = el('button', 'gcu-fold-pill', `▾ ${label}`);
+    pill.type = 'button';
+    pill.title = `Fold ${label}`;
+    return withToggle(pill, range);
+  }
+
+  function withToggle(node, range) {
+    // Keep presses away from Google's grid, which would start creating an event.
+    for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'dblclick']) {
+      node.addEventListener(type, (e) => e.stopPropagation());
+    }
+    node.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      keepInView = { name: range.name, top: node.getBoundingClientRect().top };
+      foldOpen = { ...foldOpen, [range.name]: !range.open };
+      chrome.storage.local.set({ [FOLD_STATE_KEY]: foldOpen });
+      invalidate();
+    });
+    return node;
+  }
+
   function isSupportedView() {
     if (UNSUPPORTED_VIEW.test(location.pathname)) return false;
     return !document.querySelector('[data-viewkey="MONTH"], [data-viewkey="YEAR"], [data-viewkey="AGENDA"]');
@@ -383,7 +561,7 @@
 
   function run() {
     const main = document.querySelector('[role="main"]');
-    const active = main && isSupportedView() && (settings.hide || settings.merge);
+    const active = main && isSupportedView() && (settings.hide || settings.merge || settings.fold);
     if (active ? isIntact(main) : !applied && !changes.length && !injected.length) return;
     observer.disconnect();
     undo();
@@ -393,7 +571,9 @@
         const chips = collectChips(main);
         if (settings.hide && patterns.length) hide(chips);
         if (settings.merge) merge(chips);
+        const fold = settings.fold ? prepareFold(main, chips) : null;
         relayout(chips);
+        if (fold) applyFold(fold, chips);
         if (settings.merge) attachPopovers(chips);
         applied = {
           main,
@@ -447,8 +627,16 @@
   }
 
   chrome.storage.sync.get(DEFAULTS, applySettings);
-  chrome.storage.onChanged.addListener((_, area) => {
+  chrome.storage.local.get(FOLD_STATE_KEY, (local) => {
+    foldOpen = local[FOLD_STATE_KEY] || {};
+    invalidate();
+  });
+  chrome.storage.onChanged.addListener((changed, area) => {
     if (area === 'sync') chrome.storage.sync.get(DEFAULTS, applySettings);
+    if (area === 'local' && changed[FOLD_STATE_KEY]) {
+      foldOpen = changed[FOLD_STATE_KEY].newValue || {};
+      invalidate();
+    }
   });
   window.addEventListener('resize', invalidate);
   window.addEventListener('popstate', invalidate);

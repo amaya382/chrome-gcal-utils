@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows } = require('../core.js');
+const { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY } = require('../core.js');
 
 const encode = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -123,4 +123,30 @@ test('packRows moves events up into rows freed by removed events', () => {
     ]),
     [0, 1, 0],
   );
+});
+
+test('foldRanges builds early and late ranges and drops empty ones', () => {
+  assert.deepEqual(foldRanges(8, 20), [
+    { name: 'early', start: 0, end: 8 },
+    { name: 'late', start: 20, end: 24 },
+  ]);
+  assert.deepEqual(foldRanges(0, 24), []);
+  assert.deepEqual(foldRanges(10, 6), [
+    { name: 'early', start: 0, end: 10 },
+    { name: 'late', start: 10, end: 24 },
+  ]);
+  assert.deepEqual(foldRanges('7', '30'), [{ name: 'early', start: 0, end: 7 }]);
+});
+
+test('foldY compresses folded ranges into bands and shifts what follows', () => {
+  const ranges = [
+    { top: 0, bottom: 400 },
+    { top: 1000, bottom: 1200 },
+  ];
+  assert.equal(foldY(0, ranges, 20), 0);
+  assert.equal(foldY(200, ranges, 20), 10);
+  assert.equal(foldY(400, ranges, 20), 20);
+  assert.equal(foldY(700, ranges, 20), 320);
+  assert.equal(foldY(1100, ranges, 20), 630);
+  assert.equal(foldY(1200, ranges, 20), 640);
 });

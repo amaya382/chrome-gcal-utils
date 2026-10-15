@@ -31,6 +31,15 @@
         color: #5f6368;
         font-size: 12px;
       }
+      .hours {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        margin: 0 0 10px 24px;
+      }
+      .hours input {
+        width: 44px;
+      }
       #errors {
         margin: 4px 0 0;
         padding: 0;
@@ -45,6 +54,11 @@
     <label class="toggle"><input type="checkbox" id="merge" /> Merge duplicate events</label>
     <label class="toggle"><input type="checkbox" id="hide" /> Hide events by regex</label>
     <label class="toggle"><input type="checkbox" id="solo" /> Solo button on calendar list</label>
+    <label class="toggle"><input type="checkbox" id="fold" /> Fold early morning and late night</label>
+    <div class="hours">
+      <label>Early morning <span class="hint">00:00 –</span> <input type="number" id="earlyEnd" min="0" max="24" step="1" /><span class="hint">:00</span></label>
+      <label>Late night <input type="number" id="lateStart" min="0" max="24" step="1" /><span class="hint">:00 – 24:00</span></label>
+    </div>
     <div>
       <label for="patterns">Hide patterns <span class="hint">(one regex per line, case-insensitive)</span></label>
       <textarea id="patterns" spellcheck="false" placeholder="^Lunch$&#10;Focus time"></textarea>

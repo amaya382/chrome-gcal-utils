@@ -58,6 +58,82 @@
   background: transparent;
 }
 
+.gcu-fold-band {
+  position: absolute;
+  z-index: 4;
+  box-sizing: border-box;
+  border-block: 1px dashed #bdc1c6;
+  background: repeating-linear-gradient(135deg, rgba(95, 99, 104, 0.14) 0 4px, transparent 4px 8px), #f8f9fa;
+  color: #5f6368;
+  font: 500 11px/22px 'Google Sans', Roboto, Arial, sans-serif;
+  cursor: pointer;
+}
+
+.gcu-fold-band:hover {
+  background-color: #f1f3f4;
+}
+
+.gcu-fold-label {
+  position: relative;
+  z-index: 1;
+  padding: 0 6px;
+  pointer-events: none;
+}
+
+.gcu-fold-slot {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding-right: 14px;
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.gcu-fold-count {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #e8eaed;
+  color: #3c4043;
+  line-height: 16px;
+  pointer-events: auto;
+}
+
+.gcu-fold-pill {
+  position: absolute;
+  z-index: 6;
+  margin: 2px 0 0 2px;
+  padding: 0 6px;
+  border: 1px solid #dadce0;
+  border-radius: 8px;
+  background: #fff;
+  color: #5f6368;
+  font: 500 11px/16px 'Google Sans', Roboto, Arial, sans-serif;
+  opacity: 0.6;
+  cursor: pointer;
+}
+
+.gcu-fold-pill:hover {
+  opacity: 1;
+}
+
+[data-gcu-clip='top'] {
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 10px);
+  mask-image: linear-gradient(to bottom, transparent, #000 10px);
+}
+
+[data-gcu-clip='bottom'] {
+  -webkit-mask-image: linear-gradient(to top, transparent, #000 10px);
+  mask-image: linear-gradient(to top, transparent, #000 10px);
+}
+
+[data-gcu-clip='top bottom'] {
+  -webkit-mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 10px), transparent);
+  mask-image: linear-gradient(transparent, #000 10px, #000 calc(100% - 10px), transparent);
+}
+
 .gcu-solo-row {
   position: relative;
 }
@@ -111,6 +187,22 @@
     color: #e8eaed;
   }
 
+  .gcu-fold-band {
+    border-color: #5f6368;
+    background-color: #202124;
+    color: #bdc1c6;
+  }
+
+  .gcu-fold-band:hover {
+    background-color: #28292c;
+  }
+
+  .gcu-fold-count {
+    background: #3c4043;
+    color: #e8eaed;
+  }
+
+  .gcu-fold-pill,
   .gcu-solo {
     border-color: #5f6368;
     background: #303134;
