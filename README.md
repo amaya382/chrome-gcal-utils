@@ -40,8 +40,9 @@ Two events are treated as the same when they have the same Google event ID, or w
 The merged event shows:
 
 - A stripe on its left edge for each calendar, in that calendar's color
-- A `×N` badge in front of the title with the number of calendars
-- A list of the calendars when you hover over it
+- A list of the calendars when you hover over it. Each dot is filled for accepted, half filled for undecided, and hollow for declined
+
+Hovering over an event that was not merged also shows its calendar in the same way.
 
 When some copies are accepted and others are not, the accepted copy is the one kept.
 
@@ -60,7 +61,7 @@ Days with hidden events show a `⊘N` badge in the date header. Hovering over th
 
 ### Solo mode
 
-Hover over a calendar in the left sidebar and an `S` button appears over the right end of the row, without changing the row's width. Clicking it shows only that calendar. Clicking the same button again restores the calendars that were visible before solo mode started; calendars that were hidden before stay hidden.
+Hover over a calendar in the left sidebar and an `S` button appears next to Google's own buttons on the row, without changing the row's width. Clicking it shows only that calendar. Clicking the same button again restores the calendars that were visible before solo mode started; calendars that were hidden before stay hidden.
 
 While in solo mode, clicking `S` on a different calendar switches to that calendar and keeps the original set to restore. GCal Utils switches calendars by clicking Google's own checkboxes, so the result is the same as toggling them by hand. The set to restore is saved in `chrome.storage.local` and survives a page reload.
 

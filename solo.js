@@ -1,11 +1,14 @@
 (() => {
   const STATE_KEY = 'soloState';
-  const CLICK_INTERVAL_MS = 50;
+  const POLL_MS = 50;
+  const SETTLE_TIMEOUT_MS = 1500;
+  const MAX_CLICKS_PER_CALENDAR = 3;
 
   let enabled = true;
   // { target: calendar key, saved: keys that were visible before solo started }
   let state = null;
   let busy = false;
+  let lastOffset = null;
 
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -21,11 +24,22 @@
     return rows;
   }
 
-  async function setVisible(rows, isVisible) {
-    for (const { checkbox, key } of rows) {
-      if (checkbox.checked === isVisible(key)) continue;
-      checkbox.click();
-      await sleep(CLICK_INTERVAL_MS);
+  async function waitFor(condition) {
+    const deadline = Date.now() + SETTLE_TIMEOUT_MS;
+    while (!condition() && Date.now() < deadline) await sleep(POLL_MS);
+  }
+
+  // Google re-renders the list after each toggle, so rows are looked up again instead of reusing stale checkboxes.
+  async function setVisible(isVisible) {
+    const clicks = new Map();
+    for (;;) {
+      const pending = calendarRows().find(
+        ({ checkbox, key }) => checkbox.checked !== isVisible(key) && (clicks.get(key) || 0) < MAX_CLICKS_PER_CALENDAR,
+      );
+      if (!pending) return;
+      clicks.set(pending.key, (clicks.get(pending.key) || 0) + 1);
+      pending.checkbox.click();
+      await waitFor(() => calendarRows().find((r) => r.key === pending.key)?.checkbox.checked === isVisible(pending.key));
     }
   }
 
@@ -33,17 +47,16 @@
     if (busy) return;
     busy = true;
     try {
-      const rows = calendarRows();
       if (state?.target === key) {
         const saved = new Set(state.saved);
         state = null;
         await chrome.storage.local.remove(STATE_KEY);
-        await setVisible(rows, (k) => saved.has(k));
+        await setVisible((k) => saved.has(k));
       } else {
-        const saved = state ? state.saved : rows.filter((r) => r.checkbox.checked).map((r) => r.key);
+        const saved = state ? state.saved : calendarRows().filter((r) => r.checkbox.checked).map((r) => r.key);
         state = { target: key, saved };
         await chrome.storage.local.set({ [STATE_KEY]: state });
-        await setVisible(rows, (k) => k === key);
+        await setVisible((k) => k === key);
       }
     } finally {
       busy = false;
@@ -51,15 +64,18 @@
     }
   }
 
+  // Google shows the row's own buttons only while its inner area is hovered, so the offset is kept from the last time they were measurable.
   function placeButton(row, button) {
     const rowRect = row.getBoundingClientRect();
-    let right = rowRect.right;
+    let right = Infinity;
     for (const other of row.querySelectorAll('button, [role="button"]')) {
       if (other === button || button.contains(other)) continue;
       const r = other.getBoundingClientRect();
       if (r.width && r.left > rowRect.left + rowRect.width / 2) right = Math.min(right, r.left);
     }
-    button.style.right = `${rowRect.right - right + 2}px`;
+    if (Number.isFinite(right)) lastOffset = rowRect.right - right + 2;
+    button.style.right = `${lastOffset ?? 2}px`;
+    button.classList.toggle('gcu-solo-unplaced', lastOffset == null);
   }
 
   function render() {
@@ -75,6 +91,10 @@
         button = document.createElement('button');
         button.type = 'button';
         button.className = 'gcu-solo';
+        // Google's row handlers react to press events too, which would toggle the row's own checkbox.
+        for (const type of ['pointerdown', 'mousedown', 'pointerup', 'mouseup']) {
+          button.addEventListener(type, (e) => e.stopPropagation());
+        }
         button.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -96,7 +116,7 @@
   document.addEventListener('mouseover', (e) => {
     const row = e.target.closest?.('.gcu-solo-row');
     const button = row?.querySelector('.gcu-solo');
-    if (button && !row.contains(e.relatedTarget)) placeButton(row, button);
+    if (button) placeButton(row, button);
   });
 
   let timer = null;

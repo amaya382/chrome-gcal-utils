@@ -12,6 +12,7 @@
   const changes = [];
   const injected = [];
   const popContent = new WeakMap();
+  let applied = null;
 
   function setStyle(el, prop, value) {
     const old = el.style.getPropertyValue(prop);
@@ -87,6 +88,30 @@
     return '#888';
   }
 
+  function isAccepted(eventEl) {
+    return !!(eventEl.style.backgroundColor || eventEl.querySelector('[role="button"]')?.style.backgroundColor);
+  }
+
+  // Google states the RSVP only in the screen-reader text; the chip's colors cannot tell "needs RSVP" from "declined".
+  const DECLINED = /\bdeclined\b|辞退|不参加/i;
+  const UNDECIDED = /needs rsvp|\btentative\b|\bmaybe\b|未定|未回答|出欠|返信/i;
+
+  function screenReaderText(eventEl) {
+    let text = '';
+    const walker = document.createTreeWalker(eventEl, NodeFilter.SHOW_TEXT);
+    for (let t = walker.nextNode(); t; t = walker.nextNode()) {
+      if (!t.parentElement.closest('[aria-hidden="true"], [class^="gcu-"]')) text += ` ${t.textContent}`;
+    }
+    return text;
+  }
+
+  function statusOf(eventEl) {
+    const text = screenReaderText(eventEl);
+    if (DECLINED.test(text)) return 'declined';
+    if (UNDECIDED.test(text)) return 'tentative';
+    return isAccepted(eventEl) ? 'accepted' : 'tentative';
+  }
+
   function chipOf(eventEl) {
     // Walk up to the element Google positions; a few levels cover both the button and its wrapper.
     for (let node = eventEl, depth = 0; node && depth < 4; node = node.parentElement, depth++) {
@@ -112,16 +137,15 @@
       const chip = chipOf(eventEl);
       if (!chip || seen.has(chip.box)) continue;
       seen.add(chip.box);
-      const text = titleNode(eventEl);
       const s = chip.box.style;
       const rect = chip.box.getBoundingClientRect();
       chips.push({
         ...chip,
         ...decoded,
         eventEl,
-        textNode: text,
-        title: text ? text.textContent.trim() : '',
+        title: titleNode(eventEl)?.textContent.trim() || '',
         color: colorOf(eventEl),
+        status: statusOf(eventEl),
         pos: chip.kind === 'timed' ? `${s.top}|${s.height}` : `${s.left}|${s.width}|${s.top}`,
         anchorX: chip.kind === 'timed' ? rect.left + rect.width / 2 : rect.left + 4,
         hidden: false,
@@ -155,7 +179,7 @@
       badge.setAttribute('data-gcu-pop', '');
       popContent.set(badge, {
         heading: 'Hidden by GCal Utils',
-        items: hiddenChips.map((c) => ({ color: c.color, label: c.title })),
+        items: hiddenChips.map((c) => ({ color: c.color, status: c.status, label: c.title })),
       });
       inject(badge, header);
     }
@@ -167,19 +191,16 @@
     for (const group of groups) {
       if (group.length < 2) continue;
       const members = group.map((i) => visible[i]);
-      const keep = members.find((c) => isAccepted(c.eventEl)) || members[0];
+      const keep = members.find((c) => c.status === 'accepted') || members.find((c) => c.status === 'tentative') || members[0];
       for (const c of members) {
         if (c === keep) continue;
         c.hidden = true;
         setStyle(c.box, 'display', 'none');
         setAttr(c.box, 'aria-hidden', 'true');
       }
-      decorate(keep, members);
+      keep.members = [...new Map(members.map((m) => [m.calendarId, m])).values()];
+      decorate(keep, keep.members);
     }
-  }
-
-  function isAccepted(eventEl) {
-    return !!(eventEl.style.backgroundColor || eventEl.querySelector('[role="button"]')?.style.backgroundColor);
   }
 
   const scopeIds = new WeakMap();
@@ -189,29 +210,28 @@
     return scopeIds.get(node);
   }
 
-  function decorate(keep, members) {
+  // Stripes are painted as a background instead of child nodes: Google re-renders chip children and drops its own title next to foreign nodes.
+  function decorate(keep, calendars) {
     const surface = keep.eventEl.matches('[role="button"]') ? keep.eventEl : keep.eventEl.querySelector('[role="button"]') || keep.eventEl;
-    if (getComputedStyle(surface).position === 'static') setStyle(surface, 'position', 'relative');
     const basePadding = parseFloat(getComputedStyle(surface).paddingLeft) || 0;
-    setStyle(surface, 'padding-left', `${basePadding + STRIPE_WIDTH * members.length}px`);
+    const width = STRIPE_WIDTH * calendars.length;
+    const stops = calendars.map((c, i) => `${c.color} ${i * STRIPE_WIDTH}px ${(i + 1) * STRIPE_WIDTH}px`);
+    setStyle(surface, 'padding-left', `${basePadding + width}px`);
+    setStyle(surface, 'background-image', `linear-gradient(to right, ${stops.join(', ')})`);
+    setStyle(surface, 'background-size', `${width}px 100%`);
+    setStyle(surface, 'background-repeat', 'no-repeat');
+  }
 
-    const stripes = el('span', 'gcu-stripes');
-    for (const m of members) {
-      const stripe = el('span', 'gcu-stripe');
-      stripe.style.background = m.color;
-      stripes.appendChild(stripe);
+  function attachPopovers(chips) {
+    for (const chip of chips) {
+      if (chip.hidden) continue;
+      const members = chip.members || [chip];
+      setAttr(chip.box, 'data-gcu-pop', '');
+      popContent.set(chip.box, {
+        heading: chip.title || members.find((m) => m.title)?.title || '',
+        items: members.map((m) => ({ color: m.color, status: m.status, label: m.calendarId })),
+      });
     }
-    inject(stripes, surface, surface.firstChild);
-
-    if (keep.textNode) {
-      inject(el('span', 'gcu-badge', `×${members.length}`), keep.textNode.parentElement, keep.textNode);
-    }
-
-    setAttr(keep.box, 'data-gcu-pop', '');
-    popContent.set(keep.box, {
-      heading: keep.title,
-      items: members.map((m) => ({ color: m.color, label: m.calendarId })),
-    });
   }
 
   function relayout(chips) {
@@ -287,8 +307,8 @@
     popover.replaceChildren(el('div', 'gcu-popover-heading', content.heading));
     for (const item of content.items) {
       const row = el('div', 'gcu-popover-item');
-      const dot = el('span', 'gcu-popover-dot');
-      dot.style.background = item.color;
+      const dot = el('span', `gcu-popover-dot gcu-${item.status}`);
+      dot.style.setProperty('--gcu-color', item.color);
       row.append(dot, el('span', '', item.label));
       popover.appendChild(row);
     }
@@ -308,24 +328,83 @@
     popover.style.display = 'none';
   }
 
-  document.addEventListener('mouseover', (e) => {
-    const anchor = e.target.closest?.('[data-gcu-pop]');
-    if (anchor !== popAnchor) anchor ? showPopover(anchor) : hidePopover();
+  // Hit-test injected badges by geometry as well, since Google's header layers can sit above them.
+  function anchorAt(x, y) {
+    const hit = document.elementFromPoint(x, y)?.closest('[data-gcu-pop]');
+    if (hit) return hit;
+    return (
+      injected.find((node) => {
+        if (!node.hasAttribute('data-gcu-pop')) return false;
+        const r = node.getBoundingClientRect();
+        return x >= r.left && x < r.right && y >= r.top && y < r.bottom;
+      }) || null
+    );
+  }
+
+  let pointer = null;
+  function updatePopover() {
+    const anchor = pointer ? anchorAt(pointer.x, pointer.y) : null;
+    if (anchor === popAnchor) return;
+    anchor ? showPopover(anchor) : hidePopover();
+  }
+
+  document.addEventListener(
+    'mousemove',
+    (e) => {
+      pointer = { x: e.clientX, y: e.clientY };
+      updatePopover();
+    },
+    { capture: true, passive: true },
+  );
+  document.documentElement.addEventListener('mouseleave', () => {
+    pointer = null;
+    updatePopover();
   });
 
+  function eventBoxes(main) {
+    return [...main.querySelectorAll('[data-eventid]')].map((e) => {
+      const box = chipOf(e)?.box;
+      return `${e.getAttribute('data-eventid')}|${box ? box.style.cssText : ''}`;
+    });
+  }
+
+  // Re-applying on every mutation would rewrite the DOM Google just rendered and invite another round of re-renders.
+  function isIntact(main) {
+    if (!applied || applied.main !== main || applied.path !== location.pathname) return false;
+    if (injected.some((node) => !node.isConnected)) return false;
+    if (!changes.every((c) => (c.prop ? c.el.style.getPropertyValue(c.prop) : c.el.getAttribute(c.attr)) === c.value)) {
+      return false;
+    }
+    const events = main.querySelectorAll('[data-eventid]');
+    if (events.length !== applied.events.length || [...events].some((e, i) => e !== applied.events[i])) return false;
+    const boxes = eventBoxes(main);
+    return boxes.every((b, i) => b === applied.boxes[i]);
+  }
+
   function run() {
+    const main = document.querySelector('[role="main"]');
+    const active = main && isSupportedView() && (settings.hide || settings.merge);
+    if (active ? isIntact(main) : !applied && !changes.length && !injected.length) return;
     observer.disconnect();
     undo();
+    applied = null;
     try {
-      const main = document.querySelector('[role="main"]');
-      if (main && isSupportedView() && (settings.hide || settings.merge)) {
+      if (active) {
         const chips = collectChips(main);
         if (settings.hide && patterns.length) hide(chips);
         if (settings.merge) merge(chips);
         relayout(chips);
+        if (settings.merge) attachPopovers(chips);
+        applied = {
+          main,
+          path: location.pathname,
+          events: [...main.querySelectorAll('[data-eventid]')],
+          boxes: eventBoxes(main),
+        };
       }
     } finally {
-      if (popAnchor) popAnchor.isConnected && popContent.has(popAnchor) ? showPopover(popAnchor) : hidePopover();
+      popAnchor = null;
+      updatePopover();
       observer.observe(document.body, {
         childList: true,
         subtree: true,
@@ -335,10 +414,20 @@
     }
   }
 
-  let timer = null;
+  // Run in the next frame, before paint, so Google's re-render is never shown without our changes.
+  let frame = 0;
   function schedule() {
-    clearTimeout(timer);
-    timer = setTimeout(run, 120);
+    if (!frame) {
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        run();
+      });
+    }
+  }
+
+  function invalidate() {
+    applied = null;
+    schedule();
   }
 
   const isOwn = (node) => node.nodeType === 1 && (node.className?.toString().startsWith('gcu-') || node === popover);
@@ -354,13 +443,13 @@
   function applySettings(next) {
     settings = { ...DEFAULTS, ...next };
     patterns = compilePatterns(settings.patterns).patterns;
-    schedule();
+    invalidate();
   }
 
   chrome.storage.sync.get(DEFAULTS, applySettings);
   chrome.storage.onChanged.addListener((_, area) => {
     if (area === 'sync') chrome.storage.sync.get(DEFAULTS, applySettings);
   });
-  window.addEventListener('resize', schedule);
-  window.addEventListener('popstate', schedule);
+  window.addEventListener('resize', invalidate);
+  window.addEventListener('popstate', invalidate);
 })();
