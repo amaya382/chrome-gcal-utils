@@ -1,21 +1,19 @@
 <p align="right"><strong>English</strong> / <a href="README_ja.md">日本語</a></p>
 
-<h1 align="center">📅 GCal Utils</h1>
+<h1 align="center">📅 GCal Utils Chrome Extension</h1>
 
-<p align="center">
-  <strong>Tidy up Google Calendar when you view many calendars at once.</strong><br/>
-  Merges duplicate events, hides events by regex, and shows a single calendar in one click.
-</p>
+<p align="center"><strong>Keep Google Calendar readable, however many calendars you overlay.</strong></p>
 
 > [!WARNING]
 > Experimental. GCal Utils reads and rewrites Google Calendar's undocumented page structure, so a change on Google's side can break it without notice.
 
-## Why GCal Utils?
+## ✨ Features
 
-- **Merge duplicate events**: a meeting shared by five people shows up once instead of as five narrow chips side by side, and each calendar's color stays visible as a stripe on its left edge
-- **Hide events by regex**: events you never want to see are removed from the grid, and a `⊘N` badge on the date header tells you that something was hidden
-- **Solo a calendar**: one click shows only that calendar, and a second click brings back exactly the calendars you had before
-- **Fold early morning and late night**: the hours you rarely use shrink to a thin band, so more of the day fits on screen
+- **Merge duplicate events** — a meeting that appears on several of the calendars you are viewing shows up as one chip instead of several narrow ones side by side. A colored stripe for each calendar and a hover list with each calendar's response keep track of whose event it is
+- **Hide events by regex** — events whose titles match your patterns disappear from the grid, and a `⊘N` badge on the date header shows that something was hidden
+- **Reclaim the freed space** — the remaining events are laid out again so they take over the width and all-day rows that merged and hidden events used
+- **Solo a calendar** — one click on the `S` button in the sidebar shows only that calendar, and a second click brings back exactly the calendars you had before
+- **Fold early morning and late night** — the hours you rarely use shrink to a thin band with a count of the events inside, so more of the day fits on screen
 
 ## 🚀 Quick Start
 
@@ -29,48 +27,6 @@
 Open calendar.google.com in week view. Meetings that appear on several of the calendars you are viewing now show up as one chip. Tabs that were already open before installing need a reload, because Chrome injects the content script only into pages loaded after installation.
 
 To turn GCal Utils off, switch the features off in the extension popup or remove the extension from `chrome://extensions/`.
-
-## 📖 Usage
-
-Merging and hiding apply to the time grid and the all-day row of the day, week, and custom-days views. The month, year, and schedule views are left unchanged.
-
-### Merge duplicate events
-
-Two events are treated as the same when they have the same Google event ID, or when they are on the same day (the same position in the all-day row) with the same title, start, and end. The event-ID match catches a single invitation shown on several calendars; the content match also catches copies that were created separately.
-
-The merged event shows:
-
-- A stripe on its left edge for each calendar, in that calendar's color
-- A list of the calendars when you hover over it. Each dot is filled for accepted, half filled for undecided, and hollow for declined
-
-Hovering over an event that was not merged also shows its calendar in the same way.
-
-When some copies are accepted and others are not, the accepted copy is the one kept.
-
-After merging, the remaining events in each day are laid out again so that none of them overlap, and they take over the width the removed copies used. In the all-day row, events move up into rows that became empty and the all-day area itself gets shorter.
-
-### Hide events by regex
-
-Enter one pattern per line in the extension popup. Each line is a JavaScript regular expression matched against the event title, ignoring case. Invalid patterns are reported under the text box as you type. For example:
-
-```
-^Lunch$
-Focus time
-```
-
-Days with hidden events show a `⊘N` badge in the date header. Hovering over the badge lists the titles that were hidden. The space hidden events occupied is reclaimed in the same way as for merged events.
-
-### Fold early morning and late night
-
-In the time grid, the early-morning range (00:00–08:00 by default) and the late-night range (20:00–24:00 by default) each shrink to a hatched band labeled with the folded hours. Click a band to expand that range; a small `▾` button at the top of the expanded range folds it again. Which ranges are expanded is saved in `chrome.storage.local`.
-
-Events that lie entirely inside a folded range are counted on the band as `+N` for each day, and hovering over the count lists them. Events that cross the edge of a folded range stay visible for the part outside it, and the cut edge fades out to show that the event continues.
-
-### Solo mode
-
-Hover over a calendar in the left sidebar and an `S` button appears next to Google's own buttons on the row, without changing the row's width. Clicking it shows only that calendar. Clicking the same button again restores the calendars that were visible before solo mode started; calendars that were hidden before stay hidden.
-
-While in solo mode, clicking `S` on a different calendar switches to that calendar and keeps the original set to restore. GCal Utils switches calendars by clicking Google's own checkboxes, so the result is the same as toggling them by hand. The set to restore is saved in `chrome.storage.local` and survives a page reload.
 
 ## ⚙️ Configuration
 
@@ -93,15 +49,6 @@ All settings are in the extension popup and are saved in `chrome.storage.sync`.
 ## 🧪 Development
 
 There is no build step and there are no dependencies.
-
-| File | Role |
-|---|---|
-| `core.js` | Pure functions without DOM access: event ID decoding, duplicate grouping, layout. Covered by the tests |
-| `content.js` | Merges, hides, and lays out events on the calendar grid |
-| `solo.js` | Adds the solo button to the sidebar calendar list |
-| `grid-input.js` | Runs in the page's world and converts pointer positions over a folded grid back to unfolded coordinates, so clicking and dragging on the grid hit the right time |
-| `content.css` | Styles for the stripes, badges, hover list, and solo button |
-| `popup.html`, `popup.js` | Settings popup |
 
 Run the tests with Node.js's built-in test runner (checked with Node.js 26):
 
