@@ -99,6 +99,7 @@ There is no build step and there are no dependencies.
 | `core.js` | Pure functions without DOM access: event ID decoding, duplicate grouping, layout. Covered by the tests |
 | `content.js` | Merges, hides, and lays out events on the calendar grid |
 | `solo.js` | Adds the solo button to the sidebar calendar list |
+| `grid-input.js` | Runs in the page's world and converts pointer positions over a folded grid back to unfolded coordinates, so clicking and dragging on the grid hit the right time |
 | `content.css` | Styles for the stripes, badges, hover list, and solo button |
 | `popup.html`, `popup.js` | Settings popup |
 

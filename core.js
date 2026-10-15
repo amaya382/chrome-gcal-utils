@@ -151,7 +151,20 @@
     return out;
   }
 
-  const api = { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY };
+  // Inverse of foldY: a point inside a band maps proportionally back into its range.
+  function unfoldY(y, ranges, band) {
+    let shift = 0;
+    for (const r of ranges) {
+      const size = r.bottom - r.top;
+      const top = r.top - shift;
+      if (y < top) break;
+      if (y < top + band) return r.top + ((y - top) * size) / band;
+      shift += size - band;
+    }
+    return y + shift;
+  }
+
+  const api = { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY, unfoldY };
   root.GCalUtilsCore = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(globalThis);

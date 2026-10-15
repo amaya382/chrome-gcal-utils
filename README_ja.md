@@ -99,6 +99,7 @@ build step も依存パッケージもありません。
 | `core.js` | DOM に触れない純粋関数 (event ID の decode、重複のグルーピング、レイアウト)。テストの対象 |
 | `content.js` | カレンダーのグリッド上で予定をマージ、非表示、再配置する |
 | `solo.js` | サイドバーのカレンダー一覧に solo ボタンを付ける |
+| `grid-input.js` | ページ側の world で動き、折り畳んだグリッド上のポインター位置を折り畳み前の座標に戻す。グリッドのクリックやドラッグが正しい時刻になるようにする |
 | `content.css` | 色帯、バッジ、hover 一覧、solo ボタンのスタイル |
 | `popup.html`、`popup.js` | 設定の popup |
 

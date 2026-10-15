@@ -5,7 +5,7 @@
   const DEFAULTS = { merge: true, hide: true, solo: true, patterns: '', fold: true, earlyEnd: 8, lateStart: 20 };
   const FOLD_STATE_KEY = 'foldOpen';
   const STRIPE_WIDTH = 4;
-  const BAND_HEIGHT = 24;
+  const BAND_HEIGHT = 20;
   // Chip tops sit a pixel above the hour line, so boundaries are compared with this slack.
   const EDGE_SLACK = 2;
   const UNSUPPORTED_VIEW = /\/r\/(month|year|agenda|schedule)(\/|$)/;
@@ -398,6 +398,9 @@
     }
 
     const row = cells[0].parentElement;
+    if (closed.length) {
+      setAttr(row, 'data-gcu-fold', JSON.stringify({ ranges: closed.map(({ top, bottom }) => ({ top, bottom })), band: BAND_HEIGHT }));
+    }
     const left = cells[0].offsetLeft;
     const last = cells[cells.length - 1];
     const width = last.offsetLeft + last.offsetWidth - left;
@@ -615,7 +618,8 @@
     const relevant = mutations.some((m) => {
       if (isOwn(m.target)) return false;
       if (m.type !== 'childList') return true;
-      return [...m.addedNodes, ...m.removedNodes].some((n) => !isOwn(n));
+      // Our own nodes are only removed by us while disconnected, so a removal seen here means Google dropped one.
+      return m.removedNodes.length > 0 || [...m.addedNodes].some((n) => !isOwn(n));
     });
     if (relevant) schedule();
   });

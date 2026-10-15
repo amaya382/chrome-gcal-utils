@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY } = require('../core.js');
+const { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY, unfoldY } = require(
+  '../core.js',
+);
 
 const encode = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -149,4 +151,17 @@ test('foldY compresses folded ranges into bands and shifts what follows', () => 
   assert.equal(foldY(700, ranges, 20), 320);
   assert.equal(foldY(1100, ranges, 20), 630);
   assert.equal(foldY(1200, ranges, 20), 640);
+});
+
+test('unfoldY maps folded positions back to the original grid', () => {
+  const ranges = [
+    { top: 0, bottom: 400 },
+    { top: 1000, bottom: 1200 },
+  ];
+  for (const y of [0, 200, 400, 700, 999, 1100, 1200, 1500]) {
+    assert.ok(Math.abs(unfoldY(foldY(y, ranges, 20), ranges, 20) - y) < 1e-9, `round trip of ${y}`);
+  }
+  assert.equal(unfoldY(10, ranges, 20), 200);
+  assert.equal(unfoldY(320, ranges, 20), 700);
+  assert.equal(unfoldY(630, ranges, 20), 1100);
 });

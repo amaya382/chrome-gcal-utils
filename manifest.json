@@ -14,6 +14,12 @@
       "matches": ["https://calendar.google.com/*"],
       "js": ["core.js", "content.js", "solo.js"],
       "css": ["content.css"]
+    },
+    {
+      "matches": ["https://calendar.google.com/*"],
+      "js": ["core.js", "grid-input.js"],
+      "world": "MAIN",
+      "run_at": "document_start"
     }
   ]
 }
