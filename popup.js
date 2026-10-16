@@ -1,7 +1,17 @@
-const DEFAULTS = { merge: true, hide: true, solo: true, patterns: '', fold: true, earlyEnd: 8, lateStart: 20 };
+const DEFAULTS = {
+  merge: true,
+  hide: true,
+  solo: true,
+  patterns: '',
+  priority: '',
+  fold: true,
+  earlyEnd: 8,
+  lateStart: 20,
+};
 const toggles = ['merge', 'hide', 'solo', 'fold'].map((id) => document.getElementById(id));
 const hours = ['earlyEnd', 'lateStart'].map((id) => document.getElementById(id));
 const patterns = document.getElementById('patterns');
+const priority = document.getElementById('priority');
 const errors = document.getElementById('errors');
 
 function showErrors() {
@@ -17,6 +27,7 @@ function showErrors() {
 chrome.storage.sync.get(DEFAULTS, (settings) => {
   for (const toggle of toggles) toggle.checked = settings[toggle.id];
   patterns.value = settings.patterns;
+  priority.value = settings.priority;
   for (const input of hours) input.value = settings[input.id];
   showErrors();
 });
@@ -33,9 +44,14 @@ for (const input of hours) {
   });
 }
 
-let timer = null;
-patterns.addEventListener('input', () => {
-  showErrors();
-  clearTimeout(timer);
-  timer = setTimeout(() => chrome.storage.sync.set({ patterns: patterns.value }), 300);
-});
+function saveOnInput(textarea, onInput = () => {}) {
+  let timer = null;
+  textarea.addEventListener('input', () => {
+    onInput();
+    clearTimeout(timer);
+    timer = setTimeout(() => chrome.storage.sync.set({ [textarea.id]: textarea.value }), 300);
+  });
+}
+
+saveOnInput(patterns, showErrors);
+saveOnInput(priority);

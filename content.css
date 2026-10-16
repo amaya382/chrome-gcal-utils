@@ -33,11 +33,37 @@
   overflow-wrap: anywhere;
 }
 
+.gcu-popover.gcu-interactive {
+  pointer-events: auto;
+}
+
 .gcu-popover-item {
   display: flex;
   align-items: center;
   gap: 6px;
   overflow-wrap: anywhere;
+}
+
+button.gcu-popover-item {
+  box-sizing: border-box;
+  width: calc(100% + 8px);
+  margin: 0 -4px;
+  padding: 1px 4px;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.gcu-popover-item:hover {
+  background: rgba(60, 64, 67, 0.08);
+}
+
+button.gcu-popover-item.gcu-current {
+  font-weight: 600;
 }
 
 .gcu-popover-dot {
@@ -178,6 +204,10 @@
   .gcu-popover {
     background: #303134;
     color: #e8eaed;
+  }
+
+  button.gcu-popover-item:hover {
+    background: rgba(232, 234, 237, 0.08);
   }
 
   .gcu-hidden-badge {

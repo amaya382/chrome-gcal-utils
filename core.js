@@ -65,6 +65,25 @@
     return [...groups.values()];
   }
 
+  function parseCalendarList(text) {
+    return [...new Set((text || '').split('\n').map((line) => line.trim().toLowerCase()).filter(Boolean))];
+  }
+
+  // members: [{ eid, calendarId, status }]; a pinned chip wins, then the first priority calendar, then the RSVP status.
+  function pickRepresentative(members, priority, pinnedEid) {
+    const pinned = pinnedEid && members.find((m) => m.eid === pinnedEid);
+    const preferred = priority
+      .map((id) => members.find((m) => m.calendarId.toLowerCase() === id))
+      .find(Boolean);
+    const keep =
+      pinned ||
+      preferred ||
+      members.find((m) => m.status === 'accepted') ||
+      members.find((m) => m.status === 'tentative') ||
+      members[0];
+    return { keep, preferred: !!preferred };
+  }
+
   const EPS = 1e-6;
   const overlaps = (a, b) => a.start < b.end - EPS && b.start < a.end - EPS;
 
@@ -164,7 +183,18 @@
     return y + shift;
   }
 
-  const api = { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY, unfoldY };
+  const api = {
+    decodeEventId,
+    compilePatterns,
+    parseCalendarList,
+    pickRepresentative,
+    groupDuplicates,
+    layoutLanes,
+    packRows,
+    foldRanges,
+    foldY,
+    unfoldY,
+  };
   root.GCalUtilsCore = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(globalThis);

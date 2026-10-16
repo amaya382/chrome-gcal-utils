@@ -1,8 +1,26 @@
 (() => {
-  const { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY } =
-    globalThis.GCalUtilsCore;
+  const {
+    decodeEventId,
+    compilePatterns,
+    parseCalendarList,
+    pickRepresentative,
+    groupDuplicates,
+    layoutLanes,
+    packRows,
+    foldRanges,
+    foldY,
+  } = globalThis.GCalUtilsCore;
 
-  const DEFAULTS = { merge: true, hide: true, solo: true, patterns: '', fold: true, earlyEnd: 8, lateStart: 20 };
+  const DEFAULTS = {
+    merge: true,
+    hide: true,
+    solo: true,
+    patterns: '',
+    priority: '',
+    fold: true,
+    earlyEnd: 8,
+    lateStart: 20,
+  };
   const FOLD_STATE_KEY = 'foldOpen';
   const STRIPE_WIDTH = 4;
   const BAND_HEIGHT = 20;
@@ -12,6 +30,11 @@
 
   let settings = { ...DEFAULTS };
   let patterns = [];
+  let priority = [];
+  // The chip picked from a merged popover stays the representative while its detail dialog is open.
+  let pin = null;
+  // Google may take a moment to open the dialog, so a pin that never saw one is dropped only after this delay.
+  const PIN_TIMEOUT = 2000;
   let foldOpen = {};
   // Google scrolls the grid in unfolded coordinates, so the first fold of a grid converts its scroll position once.
   const foldedScrollers = new WeakSet();
@@ -151,6 +174,7 @@
       chips.push({
         ...chip,
         ...decoded,
+        eid: eventEl.getAttribute('data-eventid'),
         eventEl,
         title: titleNode(eventEl)?.textContent.trim() || '',
         color: colorOf(eventEl),
@@ -194,21 +218,35 @@
     }
   }
 
+  const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/;
+
+  function ownEmail() {
+    for (const node of document.querySelectorAll('header [aria-label*="@"], [role="banner"] [aria-label*="@"]')) {
+      const m = EMAIL.exec(node.getAttribute('aria-label'));
+      if (m) return m[0].toLowerCase();
+    }
+    return null;
+  }
+
   function merge(chips) {
     const visible = chips.filter((c) => !c.hidden);
     const groups = groupDuplicates(visible.map((c) => ({ ...c, scope: scopeKey(c.scope) })));
+    const own = ownEmail();
+    const order = own ? [own, ...priority.filter((id) => id !== own)] : priority;
     for (const group of groups) {
       if (group.length < 2) continue;
       const members = group.map((i) => visible[i]);
-      const keep = members.find((c) => c.status === 'accepted') || members.find((c) => c.status === 'tentative') || members[0];
+      const { keep, preferred } = pickRepresentative(members, order, pin?.eid);
       for (const c of members) {
         if (c === keep) continue;
         c.hidden = true;
         setStyle(c.box, 'display', 'none');
         setAttr(c.box, 'aria-hidden', 'true');
       }
-      keep.members = [...new Map(members.map((m) => [m.calendarId, m])).values()];
-      decorate(keep, keep.members);
+      const byCalendar = new Map();
+      for (const m of [keep, ...members]) if (!byCalendar.has(m.calendarId)) byCalendar.set(m.calendarId, m);
+      keep.members = [...byCalendar.values()];
+      decorate(keep, keep.members, preferred);
     }
   }
 
@@ -220,8 +258,17 @@
   }
 
   // Stripes are painted as a background instead of child nodes: Google re-renders chip children and drops its own title next to foreign nodes.
-  function decorate(keep, calendars) {
-    const surface = keep.eventEl.matches('[role="button"]') ? keep.eventEl : keep.eventEl.querySelector('[role="button"]') || keep.eventEl;
+  // Without a priority calendar no member's color is more relevant, so the whole chip is split evenly instead.
+  function decorate(keep, calendars, preferred) {
+    const surface = surfaceOf(keep);
+    if (!preferred) {
+      const share = 100 / calendars.length;
+      const stops = calendars.map((c, i) => `${c.color} ${i * share}% ${(i + 1) * share}%`);
+      setStyle(surface, 'background-image', `linear-gradient(to right, ${stops.join(', ')})`);
+      setStyle(surface, 'outline', '1.5px dashed #5f6368');
+      setStyle(surface, 'outline-offset', '-1.5px');
+      return;
+    }
     const basePadding = parseFloat(getComputedStyle(surface).paddingLeft) || 0;
     const width = STRIPE_WIDTH * calendars.length;
     const stops = calendars.map((c, i) => `${c.color} ${i * STRIPE_WIDTH}px ${(i + 1) * STRIPE_WIDTH}px`);
@@ -231,6 +278,11 @@
     setStyle(surface, 'background-repeat', 'no-repeat');
   }
 
+  function surfaceOf(chip) {
+    const { eventEl } = chip;
+    return eventEl.matches('[role="button"]') ? eventEl : eventEl.querySelector('[role="button"]') || eventEl;
+  }
+
   function attachPopovers(chips) {
     for (const chip of chips) {
       if (chip.hidden) continue;
@@ -238,7 +290,14 @@
       setAttr(chip.box, 'data-gcu-pop', '');
       popContent.set(chip.box, {
         heading: chip.title || members.find((m) => m.title)?.title || '',
-        items: members.map((m) => ({ color: m.color, status: m.status, label: m.calendarId })),
+        interactive: members.length > 1,
+        items: members.map((m) => ({
+          color: m.color,
+          status: m.status,
+          label: m.calendarId,
+          eid: m.eid,
+          current: m === chip,
+        })),
       });
     }
   }
@@ -485,12 +544,18 @@
     const content = popContent.get(anchor);
     if (!content) return hidePopover();
     popAnchor = anchor;
+    popover.classList.toggle('gcu-interactive', !!content.interactive);
     popover.replaceChildren(el('div', 'gcu-popover-heading', content.heading));
     for (const item of content.items) {
-      const row = el('div', 'gcu-popover-item');
+      const row = el(content.interactive ? 'button' : 'div', `gcu-popover-item gcu-${item.status}`);
       const dot = el('span', `gcu-popover-dot gcu-${item.status}`);
       dot.style.setProperty('--gcu-color', item.color);
-      row.append(dot, el('span', '', item.label));
+      row.append(dot, el('span', 'gcu-popover-label', item.label));
+      if (content.interactive) {
+        row.type = 'button';
+        row.classList.toggle('gcu-current', item.current);
+        row.addEventListener('click', () => openMember(item.eid));
+      }
       popover.appendChild(row);
     }
     if (!popover.isConnected) document.body.appendChild(popover);
@@ -509,8 +574,19 @@
     popover.style.display = 'none';
   }
 
+  // The slack covers the gap between a chip and its popover so the pointer can travel into it.
+  const POPOVER_SLACK = 8;
+
+  function isOverPopover(x, y) {
+    if (!popAnchor || !popover.classList.contains('gcu-interactive')) return false;
+    const r = popover.getBoundingClientRect();
+    const s = POPOVER_SLACK;
+    return x >= r.left - s && x < r.right + s && y >= r.top - s && y < r.bottom + s;
+  }
+
   // Hit-test injected badges by geometry as well, since Google's header layers can sit above them.
   function anchorAt(x, y) {
+    if (isOverPopover(x, y)) return popAnchor;
     const hit = document.elementFromPoint(x, y)?.closest('[data-gcu-pop]');
     if (hit) return hit;
     return (
@@ -542,6 +618,28 @@
     updatePopover();
   });
 
+  // Showing the member as the representative first gives Google a visible chip to open its detail dialog from.
+  function openMember(eid) {
+    hidePopover();
+    pin = { eid, since: Date.now(), sawDialog: false };
+    applied = null;
+    run();
+    const target = [...document.querySelectorAll('[role="main"] [data-eventid]')].find(
+      (e) => e.getAttribute('data-eventid') === eid,
+    );
+    if (!target) return;
+    const surface = surfaceOf({ eventEl: target });
+    const r = surface.getBoundingClientRect();
+    const init = {
+      bubbles: true,
+      cancelable: true,
+      view: window,
+      clientX: r.left + r.width / 2,
+      clientY: r.top + r.height / 2,
+    };
+    for (const type of ['mousedown', 'mouseup', 'click']) surface.dispatchEvent(new MouseEvent(type, init));
+  }
+
   function eventBoxes(main) {
     return [...main.querySelectorAll('[data-eventid]')].map((e) => {
       const box = chipOf(e)?.box;
@@ -563,6 +661,13 @@
   }
 
   function run() {
+    if (pin) {
+      if (document.querySelector('[role="dialog"]')) pin.sawDialog = true;
+      else if (pin.sawDialog || Date.now() - pin.since > PIN_TIMEOUT) {
+        pin = null;
+        applied = null;
+      }
+    }
     const main = document.querySelector('[role="main"]');
     const active = main && isSupportedView() && (settings.hide || settings.merge || settings.fold);
     if (active ? isIntact(main) : !applied && !changes.length && !injected.length) return;
@@ -627,6 +732,7 @@
   function applySettings(next) {
     settings = { ...DEFAULTS, ...next };
     patterns = compilePatterns(settings.patterns).patterns;
+    priority = parseCalendarList(settings.priority);
     invalidate();
   }
 

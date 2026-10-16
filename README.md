@@ -9,7 +9,7 @@
 
 ## ✨ Features
 
-- **Merge duplicate events** — a meeting that appears on several of the calendars you are viewing shows up as one chip instead of several narrow ones side by side. A colored stripe for each calendar and a hover list with each calendar's response keep track of whose event it is
+- **Merge duplicate events** — a meeting that appears on several of the calendars you are viewing shows up as one chip instead of several narrow ones side by side. Your own calendar and the priority calendars you list are shown first; a colored stripe for each calendar and a hover list with each calendar's response keep track of whose event it is. Merged events without a priority calendar get a dashed outline and are split evenly into the calendars' colors. Click a calendar in the hover list to open that calendar's copy of the event
 - **Hide events by regex** — events whose titles match your patterns disappear from the grid, and a `⊘N` badge on the date header shows that something was hidden
 - **Reclaim the freed space** — the remaining events are laid out again so they take over the width and all-day rows that merged and hidden events used
 - **Solo a calendar** — one click on the `S` button in the sidebar shows only that calendar, and a second click brings back exactly the calendars you had before
@@ -35,6 +35,7 @@ All settings are in the extension popup and are saved in `chrome.storage.sync`.
 | Setting | Default | Description |
 |---|---|---|
 | Merge duplicate events | On | Merge copies of the same event into one |
+| Priority calendars | Empty | Calendar IDs to show first when merging, one per line, top first; your own calendar always comes first. The IDs are shown in the hover list |
 | Hide events by regex | On | Hide events whose title matches a hide pattern |
 | Solo button on calendar list | On | Show the `S` button in the sidebar |
 | Hide patterns | Empty | One regular expression per line, case-insensitive |

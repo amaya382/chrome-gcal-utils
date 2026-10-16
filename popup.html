@@ -31,6 +31,12 @@
         color: #5f6368;
         font-size: 12px;
       }
+      .sub {
+        margin: 0 0 10px 24px;
+      }
+      .sub textarea {
+        height: 56px;
+      }
       .hours {
         display: flex;
         flex-direction: column;
@@ -52,6 +58,10 @@
   <body>
     <h1>GCal Utils</h1>
     <label class="toggle"><input type="checkbox" id="merge" /> Merge duplicate events</label>
+    <div class="sub">
+      <label for="priority">Priority calendars <span class="hint">(one calendar ID per line, top first; your own calendar always comes first)</span></label>
+      <textarea id="priority" spellcheck="false" placeholder="team@group.calendar.google.com"></textarea>
+    </div>
     <label class="toggle"><input type="checkbox" id="hide" /> Hide events by regex</label>
     <label class="toggle"><input type="checkbox" id="solo" /> Solo button on calendar list</label>
     <label class="toggle"><input type="checkbox" id="fold" /> Fold early morning and late night</label>

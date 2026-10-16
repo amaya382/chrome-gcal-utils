@@ -1,8 +1,17 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { decodeEventId, compilePatterns, groupDuplicates, layoutLanes, packRows, foldRanges, foldY, unfoldY } = require(
-  '../core.js',
-);
+const {
+  decodeEventId,
+  compilePatterns,
+  parseCalendarList,
+  pickRepresentative,
+  groupDuplicates,
+  layoutLanes,
+  packRows,
+  foldRanges,
+  foldY,
+  unfoldY,
+} = require('../core.js');
 
 const encode = (s) => btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 
@@ -32,6 +41,30 @@ test('compilePatterns is case-insensitive and reports invalid lines', () => {
   assert.ok(patterns[1].test('Focus Time block'));
   assert.equal(errors.length, 1);
   assert.equal(errors[0].source, '(unclosed');
+});
+
+test('parseCalendarList trims, lowercases and drops blanks and repeats', () => {
+  assert.deepEqual(parseCalendarList('  Me@Example.com \n\nteam@g\nme@example.com'), ['me@example.com', 'team@g']);
+  assert.deepEqual(parseCalendarList(''), []);
+});
+
+test('pickRepresentative prefers a pinned chip, then priority order, then RSVP status', () => {
+  const members = [
+    { eid: 'a', calendarId: 'alice@example.com', status: 'tentative' },
+    { eid: 'b', calendarId: 'Bob@example.com', status: 'declined' },
+    { eid: 'c', calendarId: 'carol@example.com', status: 'accepted' },
+  ];
+  const pick = (priority, pinned) => {
+    const { keep, preferred } = pickRepresentative(members, priority, pinned);
+    return [keep.eid, preferred];
+  };
+  assert.deepEqual(pick(['bob@example.com', 'alice@example.com']), ['b', true]);
+  assert.deepEqual(pick(['nobody@example.com', 'alice@example.com']), ['a', true]);
+  assert.deepEqual(pick(['bob@example.com'], 'c'), ['c', true]);
+  assert.deepEqual(pick([]), ['c', false]);
+  assert.deepEqual(pick([], 'missing'), ['c', false]);
+  assert.deepEqual(pickRepresentative(members.slice(0, 2), []).keep.eid, 'a');
+  assert.deepEqual(pickRepresentative([members[1]], []).keep.eid, 'b');
 });
 
 test('groupDuplicates merges by event id or by title and position within a scope', () => {
