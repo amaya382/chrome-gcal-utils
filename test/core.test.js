@@ -10,6 +10,7 @@ const {
   packRows,
   foldRanges,
   foldY,
+  isDarkColor,
   unfoldY,
 } = require('../core.js');
 
@@ -197,4 +198,13 @@ test('unfoldY maps folded positions back to the original grid', () => {
   assert.equal(unfoldY(10, ranges, 20), 200);
   assert.equal(unfoldY(320, ranges, 20), 700);
   assert.equal(unfoldY(630, ranges, 20), 1100);
+});
+
+test('isDarkColor classifies opaque colors and skips transparent ones', () => {
+  assert.equal(isDarkColor([255, 255, 255, 255]), false);
+  assert.equal(isDarkColor([32, 33, 36, 255]), true);
+  assert.equal(isDarkColor([19, 19, 20, 255]), true);
+  assert.equal(isDarkColor([241, 243, 244, 255]), false);
+  assert.equal(isDarkColor([0, 0, 0, 0]), null);
+  assert.equal(isDarkColor([0, 0, 0, 100]), null);
 });

@@ -209,43 +209,41 @@ button.gcu-popover-item.gcu-current {
   color: #fff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .gcu-popover {
-    background: #303134;
-    color: #e8eaed;
-  }
+:where(:root[data-gcu-theme='dark']) .gcu-popover {
+  background: #303134;
+  color: #e8eaed;
+}
 
-  button.gcu-popover-item:hover {
-    background: rgba(232, 234, 237, 0.08);
-  }
+:where(:root[data-gcu-theme='dark']) button.gcu-popover-item:hover {
+  background: rgba(232, 234, 237, 0.08);
+}
 
-  .gcu-hidden-badge {
-    background: #3c4043;
-    color: #e8eaed;
-  }
+:where(:root[data-gcu-theme='dark']) .gcu-hidden-badge {
+  background: #3c4043;
+  color: #e8eaed;
+}
 
-  .gcu-fold-band {
-    border-color: #5f6368;
-    background: repeating-linear-gradient(135deg, rgba(232, 234, 237, 0.1) 0 4px, transparent 4px 8px), #242527;
-    color: #9aa0a6;
-  }
+:where(:root[data-gcu-theme='dark']) .gcu-fold-band {
+  border-color: #5f6368;
+  background: repeating-linear-gradient(135deg, rgba(232, 234, 237, 0.1) 0 4px, transparent 4px 8px), #242527;
+  color: #9aa0a6;
+}
 
-  .gcu-fold-band:hover {
-    background-color: #28292c;
-    color: #bdc1c6;
-  }
+:where(:root[data-gcu-theme='dark']) .gcu-fold-band:hover {
+  background-color: #28292c;
+  color: #bdc1c6;
+}
 
-  .gcu-fold-count {
-    color: #bdc1c6;
-  }
+:where(:root[data-gcu-theme='dark']) .gcu-fold-count {
+  color: #bdc1c6;
+}
 
-  .gcu-fold-pill:hover {
-    background: rgba(232, 234, 237, 0.08);
-  }
+:where(:root[data-gcu-theme='dark']) .gcu-fold-pill:hover {
+  background: rgba(232, 234, 237, 0.08);
+}
 
-  .gcu-solo {
-    border-color: #5f6368;
-    background: #303134;
-    color: #e8eaed;
-  }
+:where(:root[data-gcu-theme='dark']) .gcu-solo {
+  border-color: #5f6368;
+  background: #303134;
+  color: #e8eaed;
 }

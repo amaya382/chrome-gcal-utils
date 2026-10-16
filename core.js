@@ -183,6 +183,18 @@
     return y + shift;
   }
 
+  // rgba: [r, g, b, a] with channels in 0-255. Returns null when the color is too transparent to decide.
+  function isDarkColor([r, g, b, a]) {
+    if (a < 128) return null;
+    const linear = (c) => {
+      const v = c / 255;
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+    };
+    const luminance = 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b);
+    // Below this, white text contrasts better than black text.
+    return luminance < 0.179;
+  }
+
   const api = {
     decodeEventId,
     compilePatterns,
@@ -194,6 +206,7 @@
     foldRanges,
     foldY,
     unfoldY,
+    isDarkColor,
   };
   root.GCalUtilsCore = api;
   if (typeof module !== 'undefined') module.exports = api;
