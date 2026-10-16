@@ -66,6 +66,11 @@ button.gcu-popover-item.gcu-current {
   font-weight: 600;
 }
 
+.gcu-popover-item.gcu-declined .gcu-popover-label {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
 .gcu-popover-dot {
   flex: none;
   box-sizing: border-box;
@@ -81,7 +86,11 @@ button.gcu-popover-item.gcu-current {
 }
 
 .gcu-popover-dot.gcu-declined {
-  background: transparent;
+  border: none;
+  border-radius: 0;
+  background:
+    linear-gradient(45deg, transparent 40%, var(--gcu-color) 40% 60%, transparent 60%),
+    linear-gradient(-45deg, transparent 40%, var(--gcu-color) 40% 60%, transparent 60%);
 }
 
 .gcu-fold-band {
